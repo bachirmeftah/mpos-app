@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>نقطة بيع | متجر الهواتف</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Cairo:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F5F8FA;
+    --surface: #FFFFFF;
+    --ink: #10233B;
+    --ink-soft: #5C7290;
+    --brand: #0E4F6B;
+    --brand-2: #0FA3A3;
+    --accent: #FF7A45;
+    --line: #E3EAF0;
+  }
+  *{ font-family: 'Tajawal', sans-serif; }
+  h1,h2,h3,.font-display{ font-family: 'Cairo', sans-serif; }
+  body{ background: var(--bg); color: var(--ink); }
+
+  .scan-btn{
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+  }
+  .scan-ring{
+    position: absolute; inset: -6px; border-radius: 9999px;
+    border: 2px solid var(--brand-2);
+    animation: pulse-ring 2.2s cubic-bezier(0.4,0,0.6,1) infinite;
+  }
+  @keyframes pulse-ring{
+    0% { transform: scale(0.85); opacity: 0.7; }
+    70% { transform: scale(1.25); opacity: 0; }
+    100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .scan-ring{ animation: none; }
+  }
+
+  .barcode-mark{
+    background-image: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 6px, transparent 6px 9px, var(--ink) 9px 10px, transparent 10px 14px);
+    opacity: 0.06;
+  }
+
+  .card-tap:active{ transform: scale(0.97); }
+
+  .fab-cart{
+    background: linear-gradient(135deg, var(--brand-2) 0%, var(--brand) 100%);
+    box-shadow: 0 10px 25px -8px rgba(14,79,107,0.55);
+  }
+
+  .badge-count{
+    animation: pop 0.25s ease;
+  }
+  @keyframes pop{
+    0%{ transform: scale(0.5); } 60%{ transform: scale(1.15); } 100%{ transform: scale(1); }
+  }
+
+  .modal-sheet{
+    animation: slide-up 0.28s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes slide-up{
+    from{ transform: translateY(30px); opacity: 0; }
+    to{ transform: translateY(0); opacity: 1; }
+  }
+  .backdrop-fade{ animation: fade-in 0.2s ease; }
+  @keyframes fade-in{ from{ opacity:0; } to{ opacity:1; } }
+
+  .scan-line{
+    position: absolute; left: 8%; right: 8%; height: 2px;
+    background: linear-gradient(90deg, transparent, #21E6C1, transparent);
+    box-shadow: 0 0 10px 2px #21E6C1;
+    animation: scan-move 2s ease-in-out infinite;
+  }
+  @keyframes scan-move{
+    0%{ top: 12%; } 50%{ top: 85%; } 100%{ top: 12%; }
+  }
+
+  ::-webkit-scrollbar{ width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 10px; }
+
+  .qty-pill{
+    background: #EAF6F6; color: var(--brand-2); border: 1px solid #D3EFEF;
+  }
+  .qty-pill.low{ background: #FFF1EC; color: var(--accent); border-color: #FFDDCC; }
+</style>
+</head>
+<body class="min-h-screen pb-28">
+
+  <!-- ===== Top Bar ===== -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b" style="border-color:var(--line)">
+    <div class="px-4 pt-4 pb-3">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h1 class="font-display text-lg font-extrabold" style="color:var(--brand)">نقطة البيع</h1>
+          <p class="text-xs" style="color:var(--ink-soft)">محل الهواتف والإكسسوارات</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="dashboardBtn" class="w-9 h-9 rounded-full flex items-center justify-center shadow active:scale-95 transition" style="background:#EAF6F6; color:var(--brand-2)" title="لوحة الأرباح">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+          </button>
+          <button id="addProductBtn" class="w-9 h-9 rounded-full flex items-center justify-center text-white shadow active:scale-95 transition" style="background:var(--brand)" title="إضافة منتج">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="syncStatus" class="flex items-center gap-1.5 text-[11px] mb-1" style="color:var(--ink-soft)">
+        <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+        <span id="syncText">جاري الاتصال بقاعدة البيانات...</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+          <svg class="absolute right-3 top-1/2 -translate-y-1/2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+          </svg>
+          <input id="searchInput" type="text" placeholder="ابحث عن منتج أو باركود..."
+            class="w-full h-11 rounded-2xl bg-[var(--bg)] pr-10 pl-4 text-sm outline-none border focus:ring-2 transition"
+            style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+        </div>
+        <button id="scanBtn" class="relative shrink-0 w-11 h-11 rounded-2xl scan-btn flex items-center justify-center text-white shadow-lg active:scale-95 transition">
+          <span class="scan-ring"></span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+            <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+            <line x1="7" y1="12" x2="17" y2="12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- category chips -->
+      <div id="chipRow" class="flex gap-2 mt-3 overflow-x-auto pb-1" style="scrollbar-width:none"></div>
+    </div>
+  </header>
+
+  <!-- ===== Products Grid ===== -->
+  <main class="px-4 pt-4">
+    <div id="productGrid" class="grid grid-cols-2 gap-3"></div>
+    <p id="emptyState" class="hidden text-center text-sm py-14" style="color:var(--ink-soft)">لا توجد نتائج مطابقة لبحثك</p>
+  </main>
+
+  <!-- ===== Floating Cart Button ===== -->
+  <button id="cartFab" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 fab-cart text-white rounded-full h-14 pl-5 pr-6 flex items-center gap-3 active:scale-95 transition">
+    <span class="relative flex items-center justify-center w-8 h-8 bg-white/20 rounded-full">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <span id="cartCount" class="badge-count absolute -top-2 -left-2 bg-[var(--accent)] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+    </span>
+    <span class="font-display font-bold text-sm">السلة</span>
+    <span id="cartTotalMini" class="font-bold text-sm border-r pr-3 border-white/30">0 دج</span>
+  </button>
+
+  <!-- ===== Scanner Modal ===== -->
+  <div id="scanModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/70 backdrop-fade" onclick="closeScanner()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 modal-sheet">
+      <div class="bg-[var(--ink)] rounded-3xl overflow-hidden shadow-2xl">
+        <div class="flex items-center justify-between px-4 py-3">
+          <h3 class="text-white font-display font-bold text-sm">وجّه الكاميرا نحو الباركود</h3>
+          <button onclick="closeScanner()" class="text-white/70 w-8 h-8 flex items-center justify-center">✕</button>
+        </div>
+        <div class="relative">
+          <div id="reader" class="w-full"></div>
+          <div class="scan-line"></div>
+        </div>
+        <p id="scanStatus" class="text-center text-white/60 text-xs py-3">جاري تشغيل الكاميرا...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Cart Modal ===== -->
+  <div id="cartModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50 backdrop-fade" onclick="toggleCart(false)"></div>
+    <div class="absolute inset-x-0 bottom-0 modal-sheet">
+      <div class="bg-white rounded-t-3xl max-h-[85vh] flex flex-col">
+        <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mt-3"></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-2">
+          <h3 class="font-display font-extrabold text-lg" style="color:var(--brand)">تأكيد عملية البيع</h3>
+          <button onclick="toggleCart(false)" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+
+        <div id="cartItems" class="flex-1 overflow-y-auto px-5 py-2 space-y-3"></div>
+
+        <div id="cartEmptyMsg" class="hidden text-center py-10 text-sm" style="color:var(--ink-soft)">السلة فارغة، امسح أو اختر منتجاً لإضافته</div>
+
+        <div class="px-5 pt-3 pb-6 border-t" style="border-color:var(--line)">
+          <div class="flex justify-between text-sm mb-1" style="color:var(--ink-soft)">
+            <span>عدد القطع</span><span id="sumItems">0</span>
+          </div>
+          <div class="flex justify-between font-display font-extrabold text-xl mb-4" style="color:var(--brand)">
+            <span>الإجمالي</span><span id="sumTotal">0 دج</span>
+          </div>
+          <button id="checkoutBtn" onclick="checkout()" class="w-full h-13 py-3.5 rounded-2xl text-white font-display font-bold text-base scan-btn active:scale-95 transition disabled:opacity-40" style="background:linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%)">
+            إتمام الدفع
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Add Product Modal ===== -->
+  <div id="addModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50 backdrop-fade" onclick="toggleAddModal(false)"></div>
+    <div class="absolute inset-x-0 bottom-0 modal-sheet">
+      <div class="bg-white rounded-t-3xl max-h-[90vh] flex flex-col">
+        <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mt-3"></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-2">
+          <h3 id="addModalTitle" class="font-display font-extrabold text-lg" style="color:var(--brand)">إضافة منتج جديد</h3>
+          <button onclick="toggleAddModal(false)" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+        <form id="addProductForm" class="flex-1 overflow-y-auto px-5 py-3 space-y-3" onsubmit="return handleAddProduct(event)">
+          <div>
+            <label class="text-xs font-bold" style="color:var(--ink-soft)">اسم المنتج</label>
+            <input required id="f_name" type="text" class="w-full h-11 rounded-xl border px-3 mt-1 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs font-bold" style="color:var(--ink-soft)">سعر الشراء (دج)</label>
+              <input required id="f_cost" type="number" min="0" step="1" oninput="updatePricePreview()" class="w-full h-11 rounded-xl border px-3 mt-1 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+              <p id="costPreview" class="text-[11px] mt-1" style="color:var(--ink-soft)">= 00 دج</p>
+            </div>
+            <div>
+              <label class="text-xs font-bold" style="color:var(--ink-soft)">سعر البيع (دج)</label>
+              <input required id="f_price" type="number" min="0" step="1" oninput="updatePricePreview()" class="w-full h-11 rounded-xl border px-3 mt-1 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+              <p id="pricePreview" class="text-[11px] mt-1" style="color:var(--ink-soft)">= 00 دج</p>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs font-bold" style="color:var(--ink-soft)">الكمية</label>
+            <input required id="f_qty" type="number" min="0" step="1" class="w-full h-11 rounded-xl border px-3 mt-1 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+          </div>
+          <div>
+            <label class="text-xs font-bold" style="color:var(--ink-soft)">الفئة (اختياري)</label>
+            <input id="f_cat" type="text" placeholder="هواتف / إكسسوارات ... (اتركه فارغاً إن أردت)" class="w-full h-11 rounded-xl border px-3 mt-1 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+          </div>
+          <div>
+            <label class="text-xs font-bold" style="color:var(--ink-soft)">الباركود — يمكن إدخال أكثر من واحد مفصولة بفاصلة ، (استخدم زر المسح لإضافتها بالكاميرا)</label>
+            <div class="flex gap-2 mt-1">
+              <input id="f_barcode" type="text" placeholder="مثال: 123456, 654321" class="flex-1 h-11 rounded-xl border px-3 outline-none focus:ring-2" style="border-color:var(--line); --tw-ring-color: var(--brand-2)">
+              <button type="button" onclick="scanIntoBarcodeField()" class="w-11 h-11 rounded-xl scan-btn flex items-center justify-center shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                  <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                  <line x1="7" y1="12" x2="17" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="pb-2">
+            <label class="text-xs font-bold block mb-1.5" style="color:var(--ink-soft)">لون البطاقة</label>
+            <div class="flex gap-2">
+              <button type="button" data-color="#0E4F6B" class="color-dot w-8 h-8 rounded-full ring-2 ring-offset-2" style="background:#0E4F6B; ring-color:#0E4F6B"></button>
+              <button type="button" data-color="#0FA3A3" class="color-dot w-8 h-8 rounded-full" style="background:#0FA3A3"></button>
+              <button type="button" data-color="#FF7A45" class="color-dot w-8 h-8 rounded-full" style="background:#FF7A45"></button>
+            </div>
+            <input type="hidden" id="f_color" value="#0E4F6B">
+          </div>
+        </form>
+        <div class="px-5 pt-3 pb-6 border-t" style="border-color:var(--line)">
+          <button type="submit" form="addProductForm" id="saveProductBtn" class="w-full h-13 py-3.5 rounded-2xl text-white font-display font-bold text-base active:scale-95 transition" style="background:linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%)">
+            حفظ المنتج
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Dashboard Modal ===== -->
+  <div id="dashModal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-black/50 backdrop-fade" onclick="toggleDashboard(false)"></div>
+    <div class="absolute inset-x-0 bottom-0 modal-sheet">
+      <div class="bg-white rounded-t-3xl max-h-[88vh] flex flex-col">
+        <div class="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mt-3"></div>
+        <div class="flex items-center justify-between px-5 pt-3 pb-2">
+          <h3 class="font-display font-extrabold text-lg" style="color:var(--brand)">لوحة الأرباح</h3>
+          <button onclick="toggleDashboard(false)" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">✕</button>
+        </div>
+
+        <div class="px-5 pt-2 pb-4 grid grid-cols-2 gap-3">
+          <div class="rounded-2xl p-3" style="background:#EAF6F6">
+            <p class="text-[11px] font-bold" style="color:var(--brand-2)">ربح اليوم</p>
+            <p id="dashTodayProfit" class="font-display font-extrabold text-lg mt-1" style="color:var(--brand)">0 دج</p>
+          </div>
+          <div class="rounded-2xl p-3" style="background:#FFF1EC">
+            <p class="text-[11px] font-bold" style="color:var(--accent)">مبيعات اليوم</p>
+            <p id="dashTodayRevenue" class="font-display font-extrabold text-lg mt-1" style="color:var(--brand)">0 دج</p>
+          </div>
+          <div class="rounded-2xl p-3" style="background:var(--bg); border:1px solid var(--line)">
+            <p class="text-[11px] font-bold" style="color:var(--ink-soft)">إجمالي الأرباح (كل الفترة)</p>
+            <p id="dashAllProfit" class="font-display font-extrabold text-lg mt-1" style="color:var(--brand)">0 دج</p>
+          </div>
+          <div class="rounded-2xl p-3" style="background:var(--bg); border:1px solid var(--line)">
+            <p class="text-[11px] font-bold" style="color:var(--ink-soft)">عدد عمليات البيع</p>
+            <p id="dashSalesCount" class="font-display font-extrabold text-lg mt-1" style="color:var(--brand)">0</p>
+          </div>
+        </div>
+
+        <div class="px-5 pb-2">
+          <h4 class="font-display font-bold text-sm mb-2" style="color:var(--ink-soft)">آخر العمليات</h4>
+        </div>
+        <div id="dashSalesList" class="flex-1 overflow-y-auto px-5 pb-6 space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] hidden">
+    <div class="bg-[var(--ink)] text-white text-sm px-4 py-2.5 rounded-full shadow-xl flex items-center gap-2">
+      <span id="toastIcon">✓</span><span id="toastMsg"></span>
+    </div>
+  </div>
+
+<script>
+// ================= Supabase Setup =================
+const SUPABASE_URL = 'https://mqlwduazrzksgqjluvec.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gak-9JGAhjZ2_VOvT97CIA_vC0ecwJt';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let products = []; // loaded from Supabase
+let cart = {}; // id -> qty
+let currentFilter = 'الكل';
+let html5QrCode = null;
+let scanTargetField = null; // when scanning to fill a form field instead of adding to cart
+
+function setSyncStatus(state, text){
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncText');
+  label.textContent = text;
+  dot.className = 'w-1.5 h-1.5 rounded-full ' + (state==='ok' ? 'bg-emerald-500' : state==='error' ? 'bg-red-500' : 'bg-gray-300');
+}
+
+async function loadProducts(){
+  const { data, error } = await sb.from('products').select('*').order('id', { ascending:true });
+  if(error){
+    setSyncStatus('error', 'تعذر الاتصال بقاعدة البيانات');
+    console.error(error);
+    return;
+  }
+  products = data || [];
+  setSyncStatus('ok', 'متصل — بياناتك محفوظة ومتزامنة');
+  renderChips();
+  renderProducts();
+  renderCart();
+}
+
+function subscribeRealtime(){
+  sb.channel('products-changes')
+    .on('postgres_changes', { event:'*', schema:'public', table:'products' }, () => {
+      loadProducts();
+    })
+    .subscribe();
+}
+
+// ================= Rendering =================
+function fmt(n){ return Number(n).toLocaleString('ar-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' دج'; }
+
+function renderChips(){
+  const cats = ['الكل', ...new Set(products.map(p=>p.cat))];
+  const row = document.getElementById('chipRow');
+  row.innerHTML = cats.map(c => `
+    <span data-cat="${c}" class="chip-btn shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer ${c===currentFilter ? 'text-white' : ''}"
+      style="${c===currentFilter ? 'background:var(--brand); border-color:var(--brand)' : 'border-color:var(--line); color:var(--ink-soft)'}">
+      <span class="chip-label">${c}</span>
+      ${c!=='الكل' ? `<button type="button" class="chip-delete w-4 h-4 rounded-full flex items-center justify-center text-[10px]" style="background:rgba(0,0,0,0.12)" title="حذف الفئة">✕</button>` : ''}
+    </span>`).join('');
+  row.querySelectorAll('.chip-btn').forEach(chip=>{
+    const cat = chip.dataset.cat;
+    chip.querySelector('.chip-label').addEventListener('click', ()=>{ currentFilter = cat; renderChips(); renderProducts(); });
+    const delBtn = chip.querySelector('.chip-delete');
+    if(delBtn){
+      delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteCategory(cat); });
+    }
+  });
+}
+
+async function deleteCategory(cat){
+  const count = products.filter(p=>p.cat===cat).length;
+  if(!confirm(`حذف فئة "${cat}"؟\nسيتم نقل ${count} منتج فيها إلى فئة "غير مصنف" (لن يُحذف أي منتج).`)) return;
+  const { error } = await sb.from('products').update({ cat:'غير مصنف' }).eq('cat', cat);
+  if(error){
+    console.error(error);
+    showToast('فشل حذف الفئة', '⚠');
+    return;
+  }
+  if(currentFilter===cat) currentFilter = 'الكل';
+  await loadProducts();
+  showToast(`تم حذف فئة "${cat}"`, '✓');
+}
+
+function renderProducts(){
+  const term = document.getElementById('searchInput').value.trim().toLowerCase();
+  const grid = document.getElementById('productGrid');
+  const filtered = products.filter(p=>{
+    const inStock = p.qty > 0;
+    const matchCat = currentFilter==='الكل' || p.cat===currentFilter;
+    const codes = (p.barcodes||[]);
+    const matchTerm = !term || p.name.toLowerCase().includes(term) || codes.some(bc=>bc.includes(term));
+    return inStock && matchCat && matchTerm;
+  });
+
+  document.getElementById('emptyState').classList.toggle('hidden', filtered.length>0);
+  grid.innerHTML = filtered.map(p=>{
+    const low = p.qty <= 5;
+    return `
+    <div class="card-tap relative bg-white rounded-2xl p-3 border shadow-sm active:shadow-md transition cursor-pointer" style="border-color:var(--line)" onclick="addToCart(${p.id})">
+      <div class="absolute inset-0 barcode-mark rounded-2xl pointer-events-none"></div>
+      <button onclick="event.stopPropagation(); deleteProduct(${p.id}, '${p.name.replace(/'/g,"\\'")}')" class="absolute top-2 left-2 z-10 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center shadow" style="color:#DC5A45">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+      <button onclick="event.stopPropagation(); openEditProduct(${p.id})" class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center shadow" style="color:var(--brand-2)" title="تعديل المنتج">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      </button>
+      <div class="relative flex items-center justify-center h-16 rounded-xl mb-2" style="background:${p.color}14">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="${p.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>
+        </svg>
+      </div>
+      <p class="relative text-sm font-bold leading-snug mb-1 line-clamp-2" style="color:var(--ink)">${p.name}</p>
+      <div class="relative flex items-center justify-between mt-2">
+        <span class="font-display font-extrabold text-sm" style="color:var(--brand)">${fmt(p.price)}</span>
+        <span class="qty-pill ${low?'low':''} text-[10px] font-bold px-2 py-1 rounded-full">${p.qty} قطعة</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteProduct(id, name){
+  if(!confirm(`هل تريد حذف "${name}" نهائياً؟`)) return;
+  const { error } = await sb.from('products').delete().eq('id', id);
+  if(error){
+    console.error(error);
+    showToast('فشل حذف المنتج', '⚠');
+    return;
+  }
+  await loadProducts();
+  showToast(`تم حذف "${name}"`, '✓');
+}
+
+function renderCart(){
+  const items = Object.entries(cart);
+  const wrap = document.getElementById('cartItems');
+  const emptyMsg = document.getElementById('cartEmptyMsg');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+
+  let totalQty = 0, totalPrice = 0;
+  if(items.length===0){
+    wrap.innerHTML = '';
+    emptyMsg.classList.remove('hidden');
+    checkoutBtn.disabled = true;
+  } else {
+    emptyMsg.classList.add('hidden');
+    checkoutBtn.disabled = false;
+    wrap.innerHTML = items.map(([id,qty])=>{
+      const p = products.find(pr=>pr.id==id);
+      totalQty += qty; totalPrice += qty*p.price;
+      return `
+      <div class="flex items-center gap-3 pb-3 border-b" style="border-color:var(--line)">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style="background:${p.color}14">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${p.color}" stroke-width="1.8"><rect x="7" y="2" width="10" height="20" rx="2"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold truncate">${p.name}</p>
+          <p class="text-xs" style="color:var(--ink-soft)">${fmt(p.price)}</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="changeQty(${p.id},-1)" class="w-7 h-7 rounded-full bg-gray-100 font-bold">−</button>
+          <span class="w-5 text-center font-bold text-sm">${qty}</span>
+          <button onclick="changeQty(${p.id},1)" class="w-7 h-7 rounded-full bg-gray-100 font-bold">+</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('sumItems').textContent = totalQty;
+  document.getElementById('sumTotal').textContent = fmt(totalPrice);
+  document.getElementById('cartCount').textContent = totalQty;
+  document.getElementById('cartTotalMini').textContent = fmt(totalPrice);
+}
+
+// ================= Cart logic =================
+function addToCart(id){
+  const p = products.find(pr=>pr.id==id);
+  const current = cart[id] || 0;
+  if(current >= p.qty){ showToast('الكمية المتوفرة غير كافية', '⚠'); return; }
+  cart[id] = current + 1;
+  renderCart();
+  showToast(`تمت إضافة "${p.name}"`, '✓');
+}
+
+function changeQty(id, delta){
+  const p = products.find(pr=>pr.id==id);
+  const next = (cart[id]||0) + delta;
+  if(next <= 0){ delete cart[id]; }
+  else if(next > p.qty){ showToast('الكمية المتوفرة غير كافية', '⚠'); return; }
+  else { cart[id] = next; }
+  renderCart();
+}
+
+async function checkout(){
+  const items = Object.entries(cart);
+  if(items.length===0) return;
+  const btn = document.getElementById('checkoutBtn');
+  btn.disabled = true;
+  btn.textContent = 'جاري تأكيد البيع...';
+  try{
+    let totalRevenue = 0, totalCost = 0;
+    const soldItems = [];
+    for(const [id, qty] of items){
+      const p = products.find(pr=>pr.id==id);
+      const newQty = p.qty - qty;
+      const { error } = await sb.from('products').update({ qty:newQty }).eq('id', id);
+      if(error) throw error;
+      const revenue = qty * p.price;
+      const cost = qty * (p.cost_price || 0);
+      totalRevenue += revenue;
+      totalCost += cost;
+      soldItems.push({ id:p.id, name:p.name, qty, price:p.price, cost_price:p.cost_price||0 });
+    }
+    const { error: saleErr } = await sb.from('sales').insert([{
+      items: soldItems,
+      total_revenue: totalRevenue,
+      total_cost: totalCost,
+      total_profit: totalRevenue - totalCost
+    }]);
+    if(saleErr) console.error('sale log error', saleErr);
+
+    cart = {};
+    await loadProducts();
+    toggleCart(false);
+    showToast('تمت عملية البيع بنجاح', '✓');
+  }catch(err){
+    console.error(err);
+    showToast('فشل تأكيد البيع، تحقق من الاتصال', '⚠');
+  }finally{
+    btn.textContent = 'إتمام الدفع';
+    renderCart();
+  }
+}
+
+// ================= Add / Edit Product =================
+let editingProductId = null;
+
+function toggleAddModal(show, skipReset){
+  document.getElementById('addModal').classList.toggle('hidden', !show);
+  if(show && editingProductId === null && !skipReset){
+    // fresh "add" mode
+    document.getElementById('addModalTitle').textContent = 'إضافة منتج جديد';
+    document.getElementById('saveProductBtn').textContent = 'حفظ المنتج';
+    document.getElementById('addProductForm').reset();
+    document.getElementById('costPreview').textContent = '= 00 دج';
+    document.getElementById('pricePreview').textContent = '= 00 دج';
+    document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('ring-2','ring-offset-2'));
+    const first = document.querySelector('.color-dot');
+    first.classList.add('ring-2','ring-offset-2');
+    document.getElementById('f_color').value = first.dataset.color;
+  }
+  if(!show){
+    editingProductId = null;
+  }
+}
+document.getElementById('addProductBtn').addEventListener('click', ()=>{ editingProductId = null; toggleAddModal(true); });
+
+function openEditProduct(id){
+  const p = products.find(pr=>pr.id==id);
+  if(!p) return;
+  editingProductId = id;
+  document.getElementById('addModalTitle').textContent = 'تعديل المنتج';
+  document.getElementById('saveProductBtn').textContent = 'حفظ التعديلات';
+  document.getElementById('f_name').value = p.name;
+  document.getElementById('f_cost').value = p.cost_price || 0;
+  document.getElementById('f_price').value = p.price || 0;
+  document.getElementById('f_qty').value = p.qty;
+  document.getElementById('f_cat').value = p.cat === 'غير مصنف' ? '' : p.cat;
+  document.getElementById('f_barcode').value = (p.barcodes||[]).join(', ');
+  document.getElementById('f_color').value = p.color;
+  updatePricePreview();
+  document.querySelectorAll('.color-dot').forEach(d=>{
+    d.classList.toggle('ring-2', d.dataset.color === p.color);
+    d.classList.toggle('ring-offset-2', d.dataset.color === p.color);
+  });
+  toggleAddModal(true);
+}
+
+function updatePricePreview(){
+  const cost = Number(document.getElementById('f_cost').value) || 0;
+  const price = Number(document.getElementById('f_price').value) || 0;
+  document.getElementById('costPreview').textContent = '= ' + fmt(cost);
+  document.getElementById('pricePreview').textContent = '= ' + fmt(price);
+}
+
+document.querySelectorAll('.color-dot').forEach(dot=>{
+  dot.addEventListener('click', ()=>{
+    document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('ring-2','ring-offset-2'));
+    dot.classList.add('ring-2','ring-offset-2');
+    document.getElementById('f_color').value = dot.dataset.color;
+  });
+});
+
+async function handleAddProduct(e){
+  e.preventDefault();
+  const name = document.getElementById('f_name').value.trim();
+  const cost_price = Number(document.getElementById('f_cost').value);
+  const price = Number(document.getElementById('f_price').value);
+  const qty = Number(document.getElementById('f_qty').value);
+  const cat = document.getElementById('f_cat').value.trim() || 'غير مصنف';
+  let barcodesRaw = document.getElementById('f_barcode').value.trim();
+  const color = document.getElementById('f_color').value;
+
+  let barcodes = barcodesRaw ? barcodesRaw.split(',').map(b=>b.trim()).filter(Boolean) : [];
+  if(barcodes.length === 0){
+    barcodes = [String(Date.now()).slice(-12)];
+  }
+
+  const btn = document.getElementById('saveProductBtn');
+  btn.disabled = true;
+  btn.textContent = editingProductId ? 'جاري الحفظ...' : 'جاري الحفظ...';
+
+  let error;
+  if(editingProductId){
+    ({ error } = await sb.from('products').update({ name, price, cost_price, qty, cat, barcodes, color }).eq('id', editingProductId));
+  } else {
+    ({ error } = await sb.from('products').insert([{ name, price, cost_price, qty, cat, barcodes, color }]));
+  }
+
+  btn.disabled = false;
+  btn.textContent = editingProductId ? 'حفظ التعديلات' : 'حفظ المنتج';
+
+  if(error){
+    console.error(error);
+    showToast('فشل حفظ المنتج، تحقق من الاتصال', '⚠');
+    return false;
+  }
+
+  const wasEditing = editingProductId !== null;
+  editingProductId = null;
+  await loadProducts();
+  toggleAddModal(false);
+  showToast(wasEditing ? `تم تعديل "${name}" بنجاح` : `تمت إضافة "${name}" بنجاح`, '✓');
+  return false;
+}
+
+function scanIntoBarcodeField(){
+  scanTargetField = 'f_barcode';
+  toggleAddModal(false);
+  openScanner();
+}
+
+async function returnSale(saleId){
+  if(!confirm('هل تريد إرجاع هذه العملية؟ سيتم إعادة الكمية للمخزون وإلغاء احتسابها من الأرباح.')) return;
+
+  const { data: sale, error: fetchErr } = await sb.from('sales').select('*').eq('id', saleId).single();
+  if(fetchErr || !sale){
+    showToast('تعذر العثور على العملية', '⚠');
+    return;
+  }
+
+  try{
+    for(const item of (sale.items||[])){
+      const { data: prod, error: prodErr } = await sb.from('products').select('qty').eq('id', item.id).single();
+      if(prodErr || !prod) continue; // product may have been deleted since
+      const { error: updErr } = await sb.from('products').update({ qty: prod.qty + item.qty }).eq('id', item.id);
+      if(updErr) throw updErr;
+    }
+    const { error: markErr } = await sb.from('sales').update({ returned:true }).eq('id', saleId);
+    if(markErr) throw markErr;
+
+    await loadProducts();
+    await loadDashboard();
+    showToast('تم إرجاع العملية وإعادة الكمية للمخزون', '✓');
+  }catch(err){
+    console.error(err);
+    showToast('حدث خطأ أثناء الإرجاع', '⚠');
+  }
+}
+
+function toggleCart(show){
+  document.getElementById('cartModal').classList.toggle('hidden', !show);
+}
+document.getElementById('cartFab').addEventListener('click', ()=>toggleCart(true));
+
+// ================= Dashboard =================
+function toggleDashboard(show){
+  document.getElementById('dashModal').classList.toggle('hidden', !show);
+  if(show) loadDashboard();
+}
+document.getElementById('dashboardBtn').addEventListener('click', ()=>toggleDashboard(true));
+
+async function loadDashboard(){
+  const list = document.getElementById('dashSalesList');
+  list.innerHTML = `<p class="text-center text-sm py-6" style="color:var(--ink-soft)">جاري التحميل...</p>`;
+
+  const { data, error } = await sb.from('sales').select('*').order('created_at', { ascending:false }).limit(200);
+  if(error){
+    console.error(error);
+    list.innerHTML = `<p class="text-center text-sm py-6" style="color:var(--ink-soft)">تعذر تحميل بيانات المبيعات</p>`;
+    return;
+  }
+
+  const sales = data || [];
+  const todayStr = new Date().toDateString();
+  let todayProfit = 0, todayRevenue = 0, allProfit = 0, activeCount = 0;
+
+  sales.forEach(s=>{
+    if(s.returned) return;
+    activeCount++;
+    allProfit += Number(s.total_profit)||0;
+    if(new Date(s.created_at).toDateString() === todayStr){
+      todayProfit += Number(s.total_profit)||0;
+      todayRevenue += Number(s.total_revenue)||0;
+    }
+  });
+
+  document.getElementById('dashTodayProfit').textContent = fmt(todayProfit);
+  document.getElementById('dashTodayRevenue').textContent = fmt(todayRevenue);
+  document.getElementById('dashAllProfit').textContent = fmt(allProfit);
+  document.getElementById('dashSalesCount').textContent = activeCount;
+
+  if(sales.length===0){
+    list.innerHTML = `<p class="text-center text-sm py-6" style="color:var(--ink-soft)">لا توجد عمليات بيع مسجّلة بعد</p>`;
+    return;
+  }
+
+  list.innerHTML = sales.slice(0,30).map(s=>{
+    const d = new Date(s.created_at);
+    const time = d.toLocaleDateString('ar-DZ') + ' - ' + d.toLocaleTimeString('ar-DZ', {hour:'2-digit', minute:'2-digit'});
+    const itemsCount = (s.items||[]).reduce((a,i)=>a+i.qty,0);
+    if(s.returned){
+      return `
+      <div class="flex items-center justify-between py-2.5 border-b opacity-50" style="border-color:var(--line)">
+        <div>
+          <p class="text-sm font-bold line-through">${itemsCount} قطعة — ${fmt(Number(s.total_revenue))}</p>
+          <p class="text-[11px]" style="color:var(--ink-soft)">${time} — تم الإرجاع</p>
+        </div>
+        <span class="text-xs font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">مُرجعة</span>
+      </div>`;
+    }
+    return `
+    <div class="flex items-center justify-between py-2.5 border-b" style="border-color:var(--line)">
+      <div>
+        <p class="text-sm font-bold">${itemsCount} قطعة — ${fmt(Number(s.total_revenue))}</p>
+        <p class="text-[11px]" style="color:var(--ink-soft)">${time}</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold px-2 py-1 rounded-full" style="background:#EAF6F6; color:var(--brand-2)">ربح ${fmt(Number(s.total_profit))}</span>
+        <button onclick="returnSale(${s.id})" class="text-xs font-bold px-2 py-1 rounded-full" style="background:#FFF1EC; color:var(--accent)">إرجاع</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ================= Toast =================
+let toastTimer;
+function showToast(msg, icon='✓'){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = icon;
+  t.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.add('hidden'), 1800);
+}
+
+// ================= Search =================
+document.getElementById('searchInput').addEventListener('input', renderProducts);
+
+// ================= Barcode Scanner =================
+function openScanner(){
+  document.getElementById('scanModal').classList.remove('hidden');
+  document.getElementById('scanStatus').textContent = 'جاري تشغيل الكاميرا...';
+  html5QrCode = new Html5Qrcode("reader");
+  const config = { fps: 10, qrbox: { width: 240, height: 140 } };
+  html5QrCode.start(
+    { facingMode: "environment" },
+    config,
+    onScanSuccess,
+    ()=>{ /* scan failure per frame, ignore */ }
+  ).then(()=>{
+    document.getElementById('scanStatus').textContent = 'ضع الباركود داخل الإطار';
+  }).catch(err=>{
+    document.getElementById('scanStatus').textContent = 'تعذر الوصول إلى الكاميرا — تحقق من الأذونات';
+  });
+}
+
+function onScanSuccess(decodedText){
+  closeScanner();
+  if(scanTargetField){
+    toggleAddModal(true, true);
+    const field = document.getElementById(scanTargetField);
+    field.value = field.value.trim() ? field.value.trim() + ', ' + decodedText : decodedText;
+    scanTargetField = null;
+    showToast('تم قراءة الباركود', '✓');
+    return;
+  }
+  const p = products.find(pr=>(pr.barcodes||[]).includes(decodedText));
+  if(p){
+    addToCart(p.id);
+  } else {
+    document.getElementById('searchInput').value = decodedText;
+    renderProducts();
+    showToast('لم يتم العثور على المنتج، جرى البحث بالكود', '⚠');
+  }
+}
+
+function closeScanner(){
+  const modal = document.getElementById('scanModal');
+  if(html5QrCode){
+    html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{});
+  }
+  modal.classList.add('hidden');
+}
+
+document.getElementById('scanBtn').addEventListener('click', openScanner);
+
+// ================= Init =================
+loadProducts();
+subscribeRealtime();
+</script>
+</body>
+</html>
